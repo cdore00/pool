@@ -1,28 +1,33 @@
-const chat_color_background = '#1db2fd99', chat_color_text = '#FFF', chat_color_background_other = '#98dbfd99', chat_color_text_other = '#222';
-//const chat_color_background = 'rgb(57, 170, 0)', chat_color_text = '#FFF', chat_color_background_other = 'rgb(220, 246, 220)', chat_color_text_other = '#222';
-var chatID = 2026;
+//var HOSTserv = "https://loupop.ddns.net/pyt/";
+//"http://127.0.0.1:3000/";
+//"https://loupop.ddns.net/pyt/";
+var langSet = window.navigator.userLanguage || window.navigator.language;
+const chat_color_background = '#1db2fd99', chat_color_text = '#FFF', chat_color_background_other = '#98dbfd99', chat_color_text_other = '#222';   // Bleu
+//const chat_color_background = 'rgb(57, 170, 0)', chat_color_text = '#FFF', chat_color_background_other = 'rgb(220, 246, 220)', chat_color_text_other = '#222';   // Vert
+var chatID = 2025;   //2023
 var lastTime = new Date().getTime();
 var firstTime = lastTime, histTime = null;
-var chatRun = false;
-var chatName="", userID="", lastName, lastIP, pollTimeout, wTimeout, scrollChat, panelLayer, panelLayerMinWidth, modLayer, messUpdtItem, messList, optMenu, userOnPage;
+var xhrPoll, chatRun = false;
+var userID="", lastUser, lastIP, pollTimeout, scrollChat, panelLayer, panelLayerMinWidth, modLayer, messUpdtItem, messList, optMenu, userOnPage;
 var lastInputH = 0, lastKey = 0, longMax = 250;
 var respondToMess = false;
-var xhrPoll;
-const delay = 600000; // 10 minutes ........10 second
-const supMessage = "Supprim&eacute;";
+
+const timeBarDelay = 600000; // 10 minutes ........ délai pour afficher la barre du moment dans le chat Ex.: "Lundi, 8 mai 2023 10:15"
+
+var chatLangLbl = [];
+chatLangLbl["S0005"] = "Supprim&eacute;";
+chatLangLbl["S0010"] = "Veuillez entrer le code de confirmation envoyé à l'adresse: ";
+chatLangLbl["S0011"] = "Le code de confirmation '%1' ne correspons pas à celui envoyé à l'adresse: ";
+chatLangLbl["S0012"] = "Adresse confirmé!";
 
 //include("instChat.js");
-(function () { var chatP = document.createElement('script'); chatP.type = 'text/javascript'; chatP.async = true; chatP.src = 'misc/instChat.js'; var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(chatP, s); })();
-
-//include("util.js");
-(function () { var chat1 = document.createElement('script'); chat1.type = 'text/javascript'; chat1.async = true; chat1.src = 'misc/util.js'; var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(chat1, s); })();
-
+(function () { var chatP = document.createElement('script'); chatP.type = 'text/javascript'; chatP.async = true; chatP.src = 'https://loupop.ddns.net/misc/instChat.js'; var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(chatP, s); })();
 
 
 function initChatWidget(){
 var csslink = document.createElement('link');
 csslink.setAttribute('rel', 'stylesheet');
-csslink.setAttribute('href', 'misc/recChat.css');
+csslink.setAttribute('href', 'https://loupop.ddns.net/misc/recChat.css');
 document.head.appendChild(csslink);	
 
 addChatPanel();
@@ -34,18 +39,24 @@ messList = document.getElementById('messagesList');
 userOnPage = document.getElementById('presence-container');
 scrollChat = document.getElementById("messListCont");
 
-chatName = localStorage.getItem("chatUser");
-userID = GetCookie("userID");
-if (!chatName){
-	chatName = GetCookie("userName");
-}		
-if (chatName && chatName != "")
-	setUserInfo(chatName);
-	else{
+new objChatAuth();
+	
+if (oChatAuth.checkconnect(GetCookie("userID"), GetCookie("userName")) != ""){
+		setUserInfo(oChatAuth.getInfo().name);
+		userID = oChatAuth.getInfo().id;
+	}else{
 		showConnectOpt();
-		chatName = "";
 	}
 
+addtextContentListener();
+
+fetchData(true);
+
+scrollChat.addEventListener('scroll', checkScroll, this);
+setTimeout(minimise, 1000);
+}
+
+function addtextContentListener(){
 textContent.addEventListener("keydown", (event) => {
     var code = (event.keyCode ? event.keyCode : event.which);
 	
@@ -82,14 +93,97 @@ textContent.addEventListener("keydown", (event) => {
 	}
 	if (code != 13)
 		lastKey = code;
-});
-
-fetchData(true);
-
-scrollChat.addEventListener('scroll', checkScroll, this);
-wTimeout = setTimeout(minimise, 5000);
+});	
 }
 
+var formatDateTime = {
+	 toTitleCase : function(str) {
+		return str.replace(
+			/\w\S*/g,
+			function(txt) {
+				return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase();
+			}
+		)
+	},
+	getDateTime : function(milliTime){
+			if (milliTime)
+				return new Date(milliTime);
+			else
+				return new Date();
+	},
+	time : function(milliTime, notShowSecond) {
+		var dt = this.getDateTime(milliTime);
+		return dt.getHours() + ":" + (dt.getMinutes()+"").padStart(2, '0') + ( (notShowSecond) ? "":(":" + (dt.getSeconds()+"").padStart(2, '0')) );
+	},
+	date : function(milliTime) {
+		var dt = this.getDateTime(milliTime);
+		return dt.getFullYear() + "-" + ((dt.getMonth()+1)+"").padStart(2, '0') + "-" + (dt.getDate()+"").padStart(2, '0');
+	},
+	datetime : function(milliTime) {
+		return this.date(milliTime) + " " + this.time(milliTime, true);
+	},
+	datetimecar : function(milliTime, heure) {
+	var options = {year: 'numeric', month: 'long', day: 'numeric' };
+	var opt_weekday = { weekday: 'long' };
+	var today  = new Date(milliTime);
+	var weekday = this.toTitleCase(today.toLocaleDateString(langSet, opt_weekday));
+	var the_date = weekday + ", " + today.toLocaleDateString(langSet, options);
+	if (heure)
+		the_date = the_date + " " + this.time(milliTime, true);
+	return the_date;
+	},
+	chattime : function(milliTime) {
+	//var options = {year: 'numeric', month: 'long', day: 'numeric' };
+	var opt_weekday = { weekday: 'long' };
+	var today  = new Date(milliTime);
+	var weekday = this.toTitleCase(today.toLocaleDateString(langSet, opt_weekday));
+	//var the_date = weekday.substring(0,3) + ", " + today.toLocaleDateString("fr-FR", options);
+	return weekday.substring(0,3) + ", " + this.time(milliTime, true) ;
+	},	
+	datetimeToMilli : function(datetime) {
+		var res = false;
+		
+		if (datetime.length == 16)
+			var regex = /[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[1-2][0-9]|3[0-1]) (2[0-3]|[01][0-9]):[0-5][0-9]/g;
+		else
+			var regex = /[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[1-2][0-9]|3[0-1])/g;
+		
+		if (regex)
+			res = datetime.match(regex);
+		if (res){
+			res = new Date(res[0])
+			res = res.valueOf()
+		}
+		return res;
+	}
+}
+
+function remChilds(eItem, eItemToRemove){
+if (eItem){
+	while (eItem.childNodes.length > 0){
+		eItem.removeChild(eItem.childNodes[0]);
+	}
+}
+if (eItemToRemove){
+	eItemToRemove.parentNode.removeChild(eItemToRemove);
+}
+}
+
+function GetCookie(cname) {
+  var name = cname + "=";
+  var decodedCookie = decodeURIComponent(document.cookie);
+  var ca = decodedCookie.split(';');
+  for(var i = 0; i <ca.length; i++) {
+    var c = ca[i];
+    while (c.charAt(0) == ' ') {
+      c = c.substring(1);
+    }
+    if (c.indexOf(name) == 0) {
+      return c.substring(name.length, c.length);
+    }
+  }
+  return "";
+}
 
 function getData(param, callback){
 
@@ -111,48 +205,85 @@ function getData(param, callback){
   };
   
   xhr.send();
-  //tt = new Date().getTime();
-  //console.log("Fetching : " + formatDateTime.time(tt)); 
-
+  //console.log("Fetching : " + formatDateTime.time(new Date().getTime())); 
 }
 
 function postdata(param, callback){
 var fd = new FormData();
 const dat = {
     "cID": chatID,
-    "user": chatName,
+    "user": oChatAuth.getInfo().name,
+	"uID": oChatAuth.getInfo().id ,
     "data": (param.data) ? param.data:"",
 	"mID" : (param.id) ? param.id:"",
 	"stat": (param.stat) ? param.stat:"M",
 	"messR": (param.messR) ? param.messR:""
 };
 fd.append('info', JSON.stringify(dat));
+
+postReq('updChat', fd, callback);
+
+}
+
+function postMailCode(email){
+var fd = new FormData();
+const dat = {
+    "email": email
+};
+fd.append('info', JSON.stringify(dat));
+
+postReq('confirmMail', fd, getMailCode);
+
+}
+
+function getMailCode(res){
+	if (res.res == 0){
+		let code = prompt(chatLangLbl[res.message] + res.email);
+		if (code){
+			var fd = new FormData();
+			const dat = {
+				"email": res.email,
+				"code" : code
+			};
+			fd.append('info', JSON.stringify(dat));
+			postReq('confirmCode', fd, confMailCode);
+		}
+	}
+}
+
+function confMailCode(res){
+	if (res.res == 0){
+		userID = oChatAuth.comfirmMail();
+		setUserInfo(oChatAuth.getInfo().name);
+		longPolling(true);
+	}else{
+		var mess = chatLangLbl[res.message].replace("%1", res.code) + res.email;
+		alert(mess);
+	}
+}
+
+function postReq(funct, dat, callback){
 var xhr=new XMLHttpRequest();
 	xhr.onloadend = function() {
 	var text = xhr.responseText;
 	if (text == "")
 		affNoRep();
 	var data=JSON.parse(text);
-	//setTimeout(longPolling, 1000);
+
 	if (callback)
 		callback(data, true);
-	longPolling();
+	//if (!chatRun)
+	//	longPolling();
 	};
 	
-xhr.open("POST", HOSTserv + 'updChat',true);
-//xhr.setRequestHeader('Content-Type', 'application/json');
-//xhr.setRequestHeader('Content-type','application/x-www-form-urlencoded');
-if ("POST" == "POST" && HOSTserv != "http://127.0.0.1:5000/"){
-	//xhr.withCredentials = true;
+xhr.open("POST", HOSTserv + funct,true);
+xhr.send(dat);	
 }
-xhr.send(fd);
 
-}
 
 function longPolling(resNow) {
-	//return false;
 	chatRun = true;
-	coID = chatName;
+	coID = oChatAuth.getInfo().name;
 	resNow = (resNow) ? 1:0;
   xhrPoll = new XMLHttpRequest();
   xhrPoll.open('GET', HOSTserv + 'chat?lastTime=' + lastTime + '&cID=' + chatID + '&uID=' + userID + '&coID=' + coID + '&rN=' + resNow, true);
@@ -161,8 +292,12 @@ function longPolling(resNow) {
   xhrPoll.onload = function() {
     if (xhrPoll.status === 200) {
       // process the response
-      var res = JSON.parse(xhrPoll.responseText);
-	  poolRes(res);
+      var res = xhrPoll.responseText;
+	  if (res)
+		poolRes(JSON.parse(res));
+	  else
+		  x=res;
+	  
     }
     
     // initiate a new long-polling request
@@ -172,7 +307,7 @@ function longPolling(resNow) {
   
   xhrPoll.onerror = function() {
     // handle errors
-    console.error('Error occurred while long-polling: ', xhrPoll.statusText);
+    console.error('Error while long-polling: ' + formatDateTime.datetime() , xhrPoll.statusText);
     
     // retry after a delay
 	if (chatRun)
@@ -180,8 +315,8 @@ function longPolling(resNow) {
   };
   
   xhrPoll.send();
-  //if ( HOSTserv == "http://127.0.0.1:3000/")
-	//console.log("Polling : " + formatDateTime.time(new Date().getTime())); 
+  if ( HOSTserv == "http://127.0.0.1:3000/")
+	console.log("Polling : " + userID + "  " + formatDateTime.time(new Date().getTime())); 
 }
 
 function poolRes(res){
@@ -201,7 +336,6 @@ if (chatRun){
 		xhrPoll.abort();
 	oF.message.value = "Stop polling";
 }else{
-	//chatRun = true;
 	longPolling();
 	oF.message.value = "Start polling";
 }
@@ -211,7 +345,7 @@ if (chatRun){
 
 function sendMess(oF){
 
-if (!chatName || chatName == ""){
+if (oChatAuth.getInfo().name == ""){
 	showConnect();
 	return false;
 	}else{
@@ -252,9 +386,9 @@ function addTimeBar(ml, t, isBefore){
 function addMess(oMessItem, isRight){
 var oMess = popMess(oMessItem, isRight);
 
-if (lastName == oMessItem.user)
+if (lastUser == oMessItem.uID)
 	remChilds(false,messList.lastChild.childNodes[1]);
-if (oMessItem.time > lastTime + delay)
+if (oMessItem.time > lastTime + timeBarDelay)
 	addTimeBar(messList, oMessItem.time);
 
 checkAddRespo(oMess, oMessItem , isRight);
@@ -262,10 +396,8 @@ checkAddRespo(oMess, oMessItem , isRight);
 messList.append(oMess);
 messList.scrollIntoView({ behavior: "smooth", block: "end", inline: "nearest" });
 lastTime = oMessItem.time;
-lastName = oMessItem.user;
+lastUser = oMessItem.uID;
 lastIP = oMessItem.IP;
-//if (oMessItem.stat == 'R')
-	//addRespond(oMess, oMessItem.messR , isRight)
 }
 
 function addMessList(oMessList){
@@ -284,13 +416,13 @@ return oRMess;
 }
 
 function addHistoMess(oMessItem){
-var messList = document.getElementById('messagesList');
-var isRight = (chatName == oMessItem.user);
+//var messList = document.getElementById('messagesList');
+var isRight = (oChatAuth.getInfo().id == oMessItem.uID) ;
 
 var oMess = popMess(oMessItem, isRight);
 var oR = checkAddRespo(oMess, oMessItem , isRight);
 
-if (histTime && oMessItem.time + delay < histTime ){
+if (histTime && oMessItem.time + timeBarDelay < histTime ){
 	addTimeBar(messList, histTime, messList.firstChild);
 }
 	
@@ -310,9 +442,11 @@ firstTime = oMessItem.time;
 }
 
 function addHisto(oMessList){
-var messList = document.getElementById('messagesList');
+//var messList = document.getElementById('messagesList');
 fObj = messList.firstChild;
 oMessList.forEach(addHistoMess);
+if (oMessList.length == 0 && messList.childNodes.length > 0 && messList.firstChild.className != "timeBar" )
+	addTimeBar(messList, histTime, messList.firstChild);
 if (fObj)
 	fObj.scrollIntoView(false);
 else
@@ -323,7 +457,7 @@ chatForm.scrollIntoView(false);
 function popMess(oMess, isRight){
 var dtime = formatDateTime.chattime(oMess.time, true)
 var messtatus = (oMess.status) ?  oMess.status:"M";
-	
+
 if (isRight){
 	var row1Class = "message-list-item-row-1 right-message-list-item-row-1";
 	var row2Class = "message-list-item-row-2 right-message-list-item-row-2";
@@ -337,7 +471,7 @@ if (isRight){
 	var messageOptionsClass = "message-options message-options-right";
 	var divStyle = "background-color: " + chat_color_background_other + "; color: " + chat_color_text_other;
 }
- 
+
 var divM = document.createElement("div");
 if (messtatus == "D")
 	divM.setAttribute('class', 'message-list-item message-list-item-sup');
@@ -365,7 +499,7 @@ div1.setAttribute('onmouseout', 'hideOptions(this)');
 		divC.setAttribute('id', oMess.time);	//ID à remplacer
 		divC.setAttribute('class', 'message-bubble-content');
 		if (oMess.status && oMess.status == "D")
-			divC.innerHTML = supMessage + "</br>" + formatDateTime.datetime(oMess.Mtime, true);
+			divC.innerHTML = chatLangLbl["S0005"] + "</br>" + formatDateTime.datetime(oMess.Mtime, true);
 		else
 			divC.innerHTML = oMess.data;
 		div12.appendChild(divC);
@@ -446,7 +580,6 @@ div1.setAttribute('onmouseout', 'hideOptions(this)');
 		div12.appendChild(divC);
 	var div13 = document.createElement("div");
 	div13.setAttribute('class', messageOptionsClass);
-	//div13.setAttribute('onclick', "menuItemOpt(this)");
 		var but = document.createElement("button");
 		but.setAttribute('class', 'btn hoverable-btn');
 			var spa1 = document.createElement("span");
@@ -474,22 +607,17 @@ function fetchData(resNow) {
 
 // Set up function to check if user has reached the bottom of the page
 function checkScroll() {
-  
+/*  
   const scrollableHeight = this.scrollHeight - this.clientHeight;
   const scrolledDistance = this.scrollTop;
 
 	//console.log(scrollableHeight - scrolledDistance + " Tot height:" + this.scrollHeight + " See height:" + this.clientHeight + " Scroll height:" + scrollableHeight);
-
-  if (scrolledDistance <= 1) {
+*/
+  if (this.scrollTop <= 1) {
     fetchData();
   }
 }
 
-
-
-// Add event listener for scroll event
-//window.addEventListener('scroll', checkScroll);
-//FIN  SCROLL
 
 function showConnect(){
 var optConnect = document.getElementById('options-modal');
@@ -508,28 +636,26 @@ if (optConnect.style.display == "none" || optConnect.style.display == ""){
 }
 }
 
-function chatConnect(fo){
 
-chatRun = false;
-if (xhrPoll)
-	xhrPoll.abort();
+function chatConnect(fo, profil){
 
-var nom = fo.chatUserName.value;
-localStorage.setItem("chatUser", nom);
-if (setUserInfo(nom)){
-	closeAll();
-	longPolling(true);
+if (profil){
+	oChatAuth.setProfile(fo.chatUserName.value);
+	setUserInfo(oChatAuth.getInfo().name);
+}else{
+	postMailCode(fo.chatUserMail.value);
+	oChatAuth.connectMail(fo.chatUserName.value, fo.chatUserMail.value);
 }
+closeAll();
 }
 
 function deconnect(){
 var offLine = document.getElementById('offLine');     
 var conStat = document.getElementById('connectStatus');
 var userInfoLayer = document.getElementById('chatUserInfo');
-	chatName = "", nom = "";
+	userID = oChatAuth.disconnect();
 	userInfoLayer.innerHTML = "Chat";
-	conStat.innerHTML = "D&eacute;connect&eacute;";
-	localStorage.setItem("chatUser", "");
+	conStat.innerHTML = oChatAuth.getStatus();
 	offLine.style.display = "block";
 	closeAll();
 }
@@ -543,12 +669,8 @@ if (nom == ""){
 	alert("Nom vide");
 	return false;
 }else{
-	var avec = ": ";
-	if (GetCookie("userID"))
-		avec = " avec Recettes " + avec;
-	chatName = nom;
-	conStat.innerHTML = "Connect&eacute;" + avec + nom;
-	userInfoLayer.innerHTML = nom;
+	conStat.innerHTML = oChatAuth.getStatus();
+	userInfoLayer.innerHTML = oChatAuth.getInfo().name;
 }
 offLine.style.display = "none";
 panelLayer.style.minWidth = (userInfoLayer.offsetWidth + 20) + "px";
@@ -699,7 +821,7 @@ if (res.ok){
 	if (res.status == 'D'){
 		catCont.classList.add("message-list-item-sup");
 		catCont.parentNode.parentNode.id = "D" + messUpdtItem;
-		catCont.innerHTML = supMessage + "</br>" + formatDateTime.datetime(Date.now(), true);
+		catCont.innerHTML = chatLangLbl["S0005"] + "</br>" + formatDateTime.datetime(Date.now(), true);
 		var obR = getHistMess(catCont).histObj;
 		if (typeof obR == 'object')
 			obR.style.display = "none";
@@ -734,12 +856,7 @@ var resCont = document.getElementById("respond-container");
 resCont.style.display = "none";
 respondToMess = false;
 }
-/*
-function addRespond(oMess, messR, isRight){
-oRMess = createRowRespond(messUpdtItem, messR, isRight);
-oMess.insertBefore(oRMess, oMess.firstChild);
-}
-*/
+
 
 
 setTimeout(initChatWidget, 1000);
