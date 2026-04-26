@@ -4,7 +4,7 @@
 var langSet = window.navigator.userLanguage || window.navigator.language;
 const chat_color_background = '#1db2fd99', chat_color_text = '#FFF', chat_color_background_other = '#98dbfd99', chat_color_text_other = '#222';   // Bleu
 //const chat_color_background = 'rgb(57, 170, 0)', chat_color_text = '#FFF', chat_color_background_other = 'rgb(220, 246, 220)', chat_color_text_other = '#222';   // Vert
-var chatID = 2025;   //2023
+var chatID = 2026;   //2025,2023
 var lastTime = new Date().getTime();
 var firstTime = lastTime, histTime = null;
 var xhrPoll, chatRun = false;
